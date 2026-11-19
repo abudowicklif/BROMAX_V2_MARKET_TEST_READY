@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BROMAX TOOL</title>
+<style>
+:root{--bg:#08111f;--panel:#111f32;--panel2:#172942;--text:#e8f0fa;--muted:#9bb0c8;--cyan:#48d6e8;--green:#55d69e;--red:#ff7777;--amber:#f4c66b}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#08111f,#0e1c30);color:var(--text);font:14px/1.45 Inter,Segoe UI,Arial,sans-serif}
+header{padding:20px 24px;border-bottom:1px solid #233750;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{margin:0;font-size:22px;letter-spacing:2px}small,.muted{color:var(--muted)}.tag{border:1px solid #28516c;color:var(--cyan);padding:5px 9px;border-radius:20px;font-size:11px}
+main{max-width:1400px;margin:auto;padding:20px;display:grid;gap:16px}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.panel{background:rgba(17,31,50,.95);border:1px solid #243a55;border-radius:13px;padding:16px;min-width:0}.panel h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:#a9c3df;margin:0 0 12px}
+.big{font-size:26px;font-weight:700}.value{font-size:19px;font-weight:650}.good{color:var(--green)}.bad{color:var(--red)}.warn{color:var(--amber)}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}input{background:#091626;border:1px solid #304963;color:var(--text);border-radius:8px;padding:10px;min-width:145px}
+button{border:0;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer;background:var(--cyan);color:#071522}button.secondary{background:#263c56;color:var(--text)}
+.cols{display:grid;grid-template-columns:1.15fr .85fr;gap:12px}.scroll{max-height:330px;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}th,td{text-align:left;padding:8px;border-bottom:1px solid #263a52;white-space:nowrap}th{color:#a9c3df;position:sticky;top:0;background:#111f32}
+.agent{display:grid;grid-template-columns:1fr auto;gap:8px;padding:9px 0;border-bottom:1px solid #263a52}.bar{height:6px;background:#263a52;border-radius:8px;overflow:hidden;margin-top:6px}.bar span{display:block;height:100%;background:var(--cyan)}
+footer{text-align:center;color:#6f89a5;padding:10px 0 24px;font-size:11px}
+@media(max-width:900px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cols{grid-template-columns:1fr}}
+@media(max-width:520px){main{padding:12px}.grid{grid-template-columns:1fr 1fr}.big{font-size:20px}.panel{padding:12px}}
+</style></head>
+<body>
+<header><div><h1>BROMAX <span style="color:var(--cyan)">TOOL</span></h1><small>Digit MATCH research • next eligible tick • read-only shadow mode</small></div><div class="tag">NO ACCOUNT ACCESS · NO TRADING</div></header>
+<main>
+<section class="panel"><div class="controls"><label>Market symbol <input id="symbol" value="1HZ100V"></label><button onclick="start()">Start live research</button><button class="secondary" onclick="stop()">Stop</button><button class="secondary" onclick="backtest()">Run backtest</button><span id="notice" class="muted">Not connected</span></div></section>
+<section class="grid">
+<div class="panel"><h2>Feed state</h2><div class="big" id="state">STOPPED</div><small id="fresh">No tick received</small></div>
+<div class="panel"><h2>Latest sequence</h2><div class="big" id="seq">—</div><small id="symbolNow">Symbol: —</small></div>
+<div class="panel"><h2>Latest tick</h2><div class="big" id="digit">—</div><small id="quote">Waiting for quote</small></div>
+<div class="panel"><h2>Forecast policy</h2><div class="big warn">ABSTAIN</div><small>Until out-of-sample edge is validated</small></div>
+</section>
+<section class="cols">
+<div class="panel"><h2>Live tick tape</h2><div class="scroll"><table><thead><tr><th>Sequence</th><th>Source epoch</th><th>Quote</th><th>Digit</th><th>Received UTC</th></tr></thead><tbody id="ticks"></tbody></table></div></div>
+<div class="panel"><h2>Agent research</h2><div id="agents" class="muted">Waiting for sufficient tick history…</div><p class="muted" style="font-size:11px">Agent outputs are descriptive research. The verifier currently abstains pending genuine walk-forward validation.</p></div>
+</section>
+<section class="cols">
+<div class="panel"><h2>Prediction journal</h2><div class="scroll"><table><thead><tr><th>Created</th><th>Snapshot</th><th>Target tick</th><th>Digit</th><th>Status</th><th>Outcome</th></tr></thead><tbody id="signals"></tbody></table></div></div>
+<div class="panel"><h2>System diagnostics</h2><div id="diag" class="muted">No diagnostics yet.</div><h2 style="margin-top:18px">Backtest report</h2><pre id="backtest" style="white-space:pre-wrap;color:#c7d8e9;font-size:11px">Not run</pre></div>
+</section>
+<footer>BROMAX V2 · Public Deriv market data only · One forecast horizon = next eligible tick, not a fixed time interval.</footer>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+async function api(url,opts={}){const r=await fetch(url,{headers:{'Content-Type':'application/json'},...opts});const d=await r.json();if(!r.ok)throw new Error(d.detail||r.statusText);return d}
+async function start(){try{$('notice').textContent='Connecting…';await api('/api/research/start',{method:'POST',body:JSON.stringify({symbol:$('symbol').value.trim()})});$('notice').textContent='Start requested';}catch(e){$('notice').textContent=e.message}}
+async function stop(){try{await api('/api/research/stop',{method:'POST'});$('notice').textContent='Stopped';}catch(e){$('notice').textContent=e.message}}
+async function backtest(){try{const d=await api('/api/backtest/run',{method:'POST'});$('backtest').textContent=JSON.stringify(d,null,2)}catch(e){$('backtest').textContent=e.message}}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function render(d){
+const s=d.status||{};$('state').textContent=s.state||'—';$('state').className='big '+(s.state==='CONNECTED'?'good':s.state==='DEGRADED'?'bad':'warn');
+$('fresh').textContent=s.feed_age_seconds==null?'No tick received':`Feed age ${s.feed_age_seconds.toFixed(1)}s · reconnects ${s.reconnects}`;
+$('seq').textContent=s.latest_sequence??'—';$('symbolNow').textContent='Symbol: '+(s.symbol||'—');
+const t=(d.ticks||[]).slice().reverse();if(t.length){const x=t[0];$('digit').textContent=x.digit;$('quote').textContent=x.normalized_quote+' · '+x.symbol;$('ticks').innerHTML=t.map(x=>`<tr><td>${x.sequence}</td><td>${x.source_epoch}</td><td>${esc(x.normalized_quote)}</td><td><b>${x.digit}</b></td><td>${esc(x.received_at)}</td></tr>`).join('')}
+const a=d.agents||{};$('agents').innerHTML=Object.entries(a).map(([k,v])=>{if(!v.probabilities)return '';const pct=(Math.max(...v.probabilities)*100).toFixed(1);return `<div class="agent"><div><b>${esc(k)}</b><div class="muted">${esc(v.method||v.warning||'diagnostic')} · n=${v.sample_size??'—'}</div><div class="bar"><span style="width:${pct}%"></span></div></div><div>${v.candidate??'—'}<br><small>${pct}%</small></div></div>`}).join('')||'Waiting for sufficient tick history…';
+$('signals').innerHTML=(d.signals||[]).map(x=>`<tr><td>${esc(x.created_at)}</td><td>${x.snapshot_sequence}</td><td>${x.target_sequence}</td><td>${x.predicted_digit??'—'}</td><td>${esc(x.status)}</td><td>${esc(x.outcome||'—')}</td></tr>`).join('');
+$('diag').innerHTML=`Read-only: <b class="good">${s.read_only}</b><br>Trading enabled: <b class="bad">${s.trading_enabled}</b><br>Last error: ${esc(s.last_error||'None')}<br>Buffer: ${s.tick_count_buffered||0} ticks`;
+}
+async function poll(){try{const [status,ticks,agents,signals]=await Promise.all([api('/api/status'),api('/api/ticks?limit=30'),api('/api/agents/latest'),api('/api/signals?limit=30')]);render({status,ticks:ticks.items,agents,signals:signals.items})}catch(e){$('notice').textContent=e.message}}
+setInterval(poll,1000);poll();
+</script></body></html>
